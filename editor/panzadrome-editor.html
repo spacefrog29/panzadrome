@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANZADROME — Level Editor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0a12;
+    --panel: #0d0f1a;
+    --panel-border: #1a2030;
+    --panel-hi: #141828;
+    --accent: #00e676;
+    --accent-dim: #00a152;
+    --vent: #e040fb;
+    --enemy: #ff5252;
+    --text: #c8d0dc;
+    --text-dim: #5a6478;
+    --grid-line: rgba(255,255,255,0.04);
+    --wall: #636e72;
+    --wall-hi: #7f8c8d;
+    --factory: #00bcd4;
+    --gun: #9e9e9e;
+    --tile-size: 32px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* === HEADER === */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    color: var(--vent);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(224,64,251,0.3);
+  }
+  .logo span {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    margin-left: 8px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .btn {
+    background: var(--panel-hi);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .btn:hover {
+    background: #1c2040;
+    border-color: var(--accent-dim);
+    color: #fff;
+  }
+  .btn-accent {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+  .btn-accent:hover {
+    background: rgba(0,230,118,0.1);
+    border-color: var(--accent);
+  }
+  .btn-danger {
+    border-color: #5a2020;
+    color: var(--enemy);
+  }
+  .btn-danger:hover {
+    background: rgba(255,82,82,0.1);
+    border-color: var(--enemy);
+  }
+
+  /* === MAIN LAYOUT === */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* === LEFT PANEL — WORLD MAP === */
+  .world-panel {
+    width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .world-panel-header {
+    padding: 10px 12px 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .world-grid-wrap {
+    padding: 12px;
+    flex: 1;
+  }
+  .world-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+    aspect-ratio: 1;
+    width: 100%;
+  }
+  .world-cell {
+    aspect-ratio: 1;
+    background: #111520;
+    border: 1px solid #1a1f30;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    color: var(--text-dim);
+    transition: all 0.1s;
+  }
+  .world-cell:hover {
+    border-color: var(--accent-dim);
+    background: #151a2a;
+  }
+  .world-cell.active {
+    border-color: var(--accent);
+    background: rgba(0,230,118,0.08);
+    box-shadow: 0 0 8px rgba(0,230,118,0.2);
+  }
+  .world-cell.has-vent::after {
+    content: '';
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 5px; height: 5px;
+    background: var(--vent);
+    border-radius: 50%;
+  }
+  .world-cell.has-factory::before {
+    content: '';
+    position: absolute;
+    bottom: 2px; left: 2px;
+    width: 4px; height: 4px;
+    background: var(--factory);
+  }
+  .world-cell.has-enemies {
+    border-left: 2px solid rgba(255,82,82,0.4);
+  }
+
+  /* World panel info */
+  .world-info {
+    padding: 10px 12px;
+    border-top: 1px solid var(--panel-border);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .world-info .stat {
+    display: flex;
+    justify-content: space-between;
+  }
+  .world-info .stat-val {
+    color: var(--text);
+  }
+  .stat-val.vents { color: var(--vent); }
+  .stat-val.factories { color: var(--factory); }
+
+  /* === CENTRE — SCREEN EDITOR === */
+  .editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .editor-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    min-height: 36px;
+    flex-shrink: 0;
+  }
+  .editor-toolbar .screen-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 80px;
+  }
+  .editor-toolbar .sep {
+    width: 1px;
+    height: 18px;
+    background: var(--panel-border);
+  }
+  .tool-group {
+    display: flex;
+    gap: 2px;
+  }
+  .tool-btn {
+    width: 28px; height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.12s;
+    position: relative;
+  }
+  .tool-btn:hover {
+    background: var(--panel-hi);
+    color: var(--text);
+    border-color: var(--panel-border);
+  }
+  .tool-btn.active {
+    background: rgba(0,230,118,0.1);
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+  .tool-btn .tooltip {
+    display: none;
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: #ccc;
+    font-size: 9px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .tool-btn:hover .tooltip { display: block; }
+
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background: #080810;
+  }
+  #editor-canvas {
+    image-rendering: pixelated;
+    cursor: crosshair;
+  }
+  .ref-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    opacity: 0.3;
+    display: none;
+  }
+  .canvas-coords {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 10px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  /* === RIGHT PANEL — TILE PALETTE + SCREEN PROPS === */
+  .props-panel {
+    width: 220px;
+    background: var(--panel);
+    border-left: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .props-section {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .props-section-title {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* Tile palette */
+  .tile-palette {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+  .tile-swatch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
+    background: #111520;
+    border: 1px solid #1a1f30;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .tile-swatch:hover {
+    border-color: var(--accent-dim);
+    color: var(--text);
+  }
+  .tile-swatch.active {
+    border-color: var(--accent);
+    background: rgba(0,230,118,0.06);
+    color: var(--accent);
+  }
+  .tile-swatch .swatch-color {
+    width: 14px; height: 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+
+  /* Screen properties */
+  .prop-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 10px;
+  }
+  .prop-row label {
+    color: var(--text-dim);
+  }
+  .prop-row input[type="number"] {
+    width: 48px;
+    background: #111520;
+    border: 1px solid #1a1f30;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 3px 6px;
+    text-align: center;
+  }
+  .prop-row input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+  }
+  .prop-row select {
+    background: #111520;
+    border: 1px solid #1a1f30;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 4px;
+  }
+
+  /* Reference image controls */
+  .ref-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ref-controls input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .ref-controls label {
+    font-size: 9px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Keyboard shortcuts panel */
+  .shortcuts-panel {
+    padding: 10px 12px;
+    margin-top: auto;
+  }
+  .shortcuts-panel .props-section-title {
+    margin-bottom: 6px;
+  }
+  .shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .shortcut-row kbd {
+    background: #181c28;
+    padding: 0 4px;
+    border: 1px solid #252a3a;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text);
+    font-size: 9px;
+  }
+
+  /* Hidden file inputs */
+  .hidden { display: none; }
+
+  /* Ref image upload area */
+  .ref-drop-zone {
+    border: 1px dashed #2a3040;
+    padding: 8px;
+    text-align: center;
+    font-size: 9px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ref-drop-zone:hover {
+    border-color: var(--accent-dim);
+    color: var(--text);
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--panel);
+    border: 1px solid var(--accent-dim);
+    color: var(--accent);
+    padding: 8px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    z-index: 1000;
+    transition: transform 0.25s ease;
+    pointer-events: none;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Erase cursor */
+  .erasing #editor-canvas { cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">PANZADROME <span>LEVEL EDITOR</span></div>
+  </div>
+  <div class="header-actions">
+    <button class="btn" onclick="newMap()" title="Create blank map">NEW</button>
+    <button class="btn" onclick="document.getElementById('load-input').click()">LOAD JSON</button>
+    <button class="btn btn-accent" onclick="saveJSON()">SAVE JSON</button>
+    <button class="btn" onclick="exportJS()">EXPORT JS</button>
+    <button class="btn" onclick="importCurrentJS()">IMPORT CURRENT</button>
+    <input type="file" id="load-input" class="hidden" accept=".json" onchange="loadJSON(event)">
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT: World Grid -->
+  <div class="world-panel">
+    <div class="world-panel-header">WORLD MAP 8×8</div>
+    <div class="world-grid-wrap">
+      <div class="world-grid" id="world-grid"></div>
+    </div>
+    <div class="world-info" id="world-info">
+      <div class="stat"><span>Total vents:</span><span class="stat-val vents" id="stat-vents">0</span></div>
+      <div class="stat"><span>Total factories:</span><span class="stat-val factories" id="stat-factories">0</span></div>
+      <div class="stat"><span>Total gun emplacements:</span><span class="stat-val" id="stat-guns">0</span></div>
+      <div class="stat"><span>Player start:</span><span class="stat-val" id="stat-start">A1</span></div>
+    </div>
+  </div>
+
+  <!-- CENTRE: Editor Canvas -->
+  <div class="editor-area">
+    <div class="editor-toolbar">
+      <span class="screen-label" id="screen-label">A1</span>
+      <div class="sep"></div>
+      <div class="tool-group">
+        <button class="tool-btn active" data-tool="paint" onclick="setTool('paint')" title="Paint tiles">
+          ✏️<span class="tooltip">Paint (B)</span>
+        </button>
+        <button class="tool-btn" data-tool="erase" onclick="setTool('erase')" title="Erase to empty">
+          🧹<span class="tooltip">Erase (E)</span>
+        </button>
+        <button class="tool-btn" data-tool="fill" onclick="setTool('fill')" title="Flood fill">
+          🪣<span class="tooltip">Fill (F)</span>
+        </button>
+        <button class="tool-btn" data-tool="pick" onclick="setTool('pick')" title="Pick tile type">
+          💉<span class="tooltip">Pick (I)</span>
+        </button>
+      </div>
+      <div class="sep"></div>
+      <button class="tool-btn" onclick="setPlayerStart()" title="Set player start to this screen">
+        🎯<span class="tooltip">Set Start</span>
+      </button>
+      <button class="tool-btn" onclick="clearScreen()" title="Clear current screen">
+        🗑️<span class="tooltip">Clear Screen</span>
+      </button>
+      <button class="tool-btn" onclick="addBorderWalls()" title="Add border walls with exit gaps">
+        🔲<span class="tooltip">Auto Borders</span>
+      </button>
+      <button class="tool-btn" onclick="undo()" title="Undo last action">
+        ↩️<span class="tooltip">Undo (Z)</span>
+      </button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="editor-canvas" width="640" height="448"></canvas>
+      <div class="canvas-coords" id="canvas-coords">—</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Tile Palette + Properties -->
+  <div class="props-panel">
+    <div class="props-section">
+      <div class="props-section-title">TILE PALETTE</div>
+      <div class="tile-palette" id="tile-palette"></div>
+    </div>
+
+    <div class="props-section">
+      <div class="props-section-title">SCREEN PROPERTIES</div>
+      <div class="prop-row">
+        <label>Regular enemies</label>
+        <input type="number" id="prop-enemies" min="0" max="10" value="2" onchange="updateScreenProp('enemies', this.value)">
+      </div>
+      <div class="prop-row">
+        <label>Guard enemies</label>
+        <input type="number" id="prop-guards" min="0" max="8" value="0" onchange="updateScreenProp('guards', this.value)">
+      </div>
+      <div class="prop-row">
+        <label>Mines</label>
+        <input type="number" id="prop-mines" min="0" max="10" value="0" onchange="updateScreenProp('mines', this.value)">
+      </div>
+    </div>
+
+    <div class="props-section">
+      <div class="props-section-title">REFERENCE IMAGE</div>
+      <div class="ref-controls">
+        <div class="ref-drop-zone" id="ref-drop" onclick="document.getElementById('ref-input').click()">
+          Drop image or click to load
+        </div>
+        <input type="file" id="ref-input" class="hidden" accept="image/*" onchange="loadRefImage(event)">
+        <label>Opacity <span id="ref-opacity-val">30%</span></label>
+        <input type="range" id="ref-opacity" min="0" max="100" value="30" oninput="setRefOpacity(this.value)">
+        <div class="prop-row">
+          <label>Show overlay</label>
+          <input type="checkbox" id="ref-show" onchange="toggleRef(this.checked)">
+        </div>
+      </div>
+    </div>
+
+    <div class="props-section">
+      <div class="props-section-title">REFERENCE CROP</div>
+      <div class="prop-row">
+        <label>Screen Col (0-7)</label>
+        <input type="number" id="ref-crop-col" min="0" max="7" value="0" onchange="updateRefCrop()">
+      </div>
+      <div class="prop-row">
+        <label>Screen Row (0-7)</label>
+        <input type="number" id="ref-crop-row" min="0" max="7" value="0" onchange="updateRefCrop()">
+      </div>
+      <div class="prop-row" style="margin-top:4px">
+        <label style="font-size:8px;color:var(--text-dim)">Auto-follow screen</label>
+        <input type="checkbox" id="ref-auto-follow" checked>
+      </div>
+    </div>
+
+    <div class="shortcuts-panel">
+      <div class="props-section-title">SHORTCUTS</div>
+      <div class="shortcut-row"><span>Paint</span><kbd>B</kbd></div>
+      <div class="shortcut-row"><span>Erase</span><kbd>E</kbd></div>
+      <div class="shortcut-row"><span>Fill</span><kbd>F</kbd></div>
+      <div class="shortcut-row"><span>Eyedropper</span><kbd>I</kbd></div>
+      <div class="shortcut-row"><span>Undo</span><kbd>Ctrl+Z</kbd></div>
+      <div class="shortcut-row"><span>Save</span><kbd>Ctrl+S</kbd></div>
+      <div class="shortcut-row"><span>Tile 0-9</span><kbd>0-9</kbd></div>
+      <div class="shortcut-row"><span>Navigate</span><kbd>Arrows</kbd></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// PANZADROME LEVEL EDITOR
+// ============================================================
+
+const COLS = 20, ROWS = 14, MAP_SIZE = 8;
+const TILE = 32;
+const CW = COLS * TILE, CH = ROWS * TILE;
+
+// Tile definitions
+const TILES = [
+  { id: 0, name: 'Empty',    char: '.', color: '#2d3436' },
+  { id: 1, name: 'Wall',     char: '#', color: '#636e72' },
+  { id: 2, name: 'Vent',     char: 'V', color: '#e040fb' },
+  { id: 3, name: 'Fac:Mortar',   char: 'M', color: '#ff7043' },
+  { id: 4, name: 'Fac:Mine',     char: 'N', color: '#ffa726' },
+  { id: 5, name: 'Fac:Poly',     char: 'P', color: '#78909c' },
+  { id: 6, name: 'Fac:Shield',   char: 'S', color: '#42a5f5' },
+  { id: 7, name: 'Fac:Speed',    char: 'D', color: '#66bb6a' },
+  { id: 8, name: 'Fac:Ricochet', char: 'R', color: '#00e5ff' },
+  { id: 9, name: 'Gun Empl.',    char: 'G', color: '#9e9e9e' },
+];
+
+// State
+let mapData = createBlankMap();
+let currentSX = 0, currentSY = 0;
+let selectedTile = 1; // Wall by default
+let currentTool = 'paint';
+let undoStack = [];
+let refImage = null;
+let refOpacity = 0.3;
+let refShow = false;
+let isDrawing = false;
+let lastDrawnCell = null;
+
+const canvas = document.getElementById('editor-canvas');
+const ctx = canvas.getContext('2d');
+
+// ============================================================
+// MAP DATA STRUCTURE
+// ============================================================
+
+function createBlankMap() {
+  const map = {
+    name: 'Untitled Map',
+    version: 1,
+    playerStart: { screenX: 0, screenY: 0 },
+    screens: []
+  };
+  for (let sy = 0; sy < MAP_SIZE; sy++) {
+    map.screens[sy] = [];
+    for (let sx = 0; sx < MAP_SIZE; sx++) {
+      map.screens[sy][sx] = {
+        grid: Array.from({ length: ROWS }, () => Array(COLS).fill(0)),
+        enemies: 2,
+        guards: 0,
+        mines: 0,
+      };
+    }
+  }
+  return map;
+}
+
+function getScreen(sy, sx) {
+  return mapData.screens[sy]?.[sx] || null;
+}
+
+function currentScreen() {
+  return getScreen(currentSY, currentSX);
+}
+
+// ============================================================
+// TILE PALETTE
+// ============================================================
+
+function buildPalette() {
+  const pal = document.getElementById('tile-palette');
+  pal.innerHTML = '';
+  TILES.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'tile-swatch' + (t.id === selectedTile ? ' active' : '');
+    el.dataset.id = t.id;
+    el.innerHTML = `<div class="swatch-color" style="background:${t.color}"></div>${t.name}`;
+    el.addEventListener('click', () => selectTile(t.id));
+    pal.appendChild(el);
+  });
+}
+
+function selectTile(id) {
+  selectedTile = id;
+  document.querySelectorAll('.tile-swatch').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.id) === id);
+  });
+}
+
+// ============================================================
+// WORLD GRID
+// ============================================================
+
+function buildWorldGrid() {
+  const grid = document.getElementById('world-grid');
+  grid.innerHTML = '';
+  for (let sy = 0; sy < MAP_SIZE; sy++) {
+    for (let sx = 0; sx < MAP_SIZE; sx++) {
+      const cell = document.createElement('div');
+      cell.className = 'world-cell';
+      cell.dataset.sx = sx;
+      cell.dataset.sy = sy;
+      cell.textContent = String.fromCharCode(65 + sx) + (sy + 1);
+      cell.addEventListener('click', () => navigateTo(sx, sy));
+      grid.appendChild(cell);
+    }
+  }
+  updateWorldGrid();
+}
+
+function updateWorldGrid() {
+  document.querySelectorAll('.world-cell').forEach(cell => {
+    const sx = parseInt(cell.dataset.sx), sy = parseInt(cell.dataset.sy);
+    const scr = getScreen(sy, sx);
+    cell.classList.toggle('active', sx === currentSX && sy === currentSY);
+    
+    let hasVent = false, hasFactory = false, hasEnemies = false;
+    if (scr) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        if (scr.grid[r][c] === 2) hasVent = true;
+        if (scr.grid[r][c] >= 3 && scr.grid[r][c] <= 8) hasFactory = true;
+      }
+      hasEnemies = (scr.enemies > 0 || scr.guards > 0);
+    }
+    cell.classList.toggle('has-vent', hasVent);
+    cell.classList.toggle('has-factory', hasFactory);
+    cell.classList.toggle('has-enemies', hasEnemies);
+  });
+  updateWorldStats();
+}
+
+function updateWorldStats() {
+  let vents = 0, factories = 0, guns = 0;
+  for (let sy = 0; sy < MAP_SIZE; sy++) for (let sx = 0; sx < MAP_SIZE; sx++) {
+    const scr = getScreen(sy, sx);
+    if (!scr) continue;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const t = scr.grid[r][c];
+      if (t === 2) vents++;
+      if (t >= 3 && t <= 8) factories++;
+      if (t === 9) guns++;
+    }
+  }
+  document.getElementById('stat-vents').textContent = vents;
+  document.getElementById('stat-factories').textContent = factories;
+  document.getElementById('stat-guns').textContent = guns;
+  const ps = mapData.playerStart;
+  document.getElementById('stat-start').textContent = String.fromCharCode(65 + ps.screenX) + (ps.screenY + 1);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+
+function navigateTo(sx, sy) {
+  if (sx < 0 || sx >= MAP_SIZE || sy < 0 || sy >= MAP_SIZE) return;
+  currentSX = sx;
+  currentSY = sy;
+  document.getElementById('screen-label').textContent = String.fromCharCode(65 + sx) + (sy + 1);
+  
+  const scr = currentScreen();
+  document.getElementById('prop-enemies').value = scr.enemies || 0;
+  document.getElementById('prop-guards').value = scr.guards || 0;
+  document.getElementById('prop-mines').value = scr.mines || 0;
+  
+  // Auto-follow ref crop
+  if (document.getElementById('ref-auto-follow').checked) {
+    document.getElementById('ref-crop-col').value = sx;
+    document.getElementById('ref-crop-row').value = sy;
+  }
+  
+  updateWorldGrid();
+  renderEditor();
+}
+
+// ============================================================
+// TOOLS
+// ============================================================
+
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+  document.body.classList.toggle('erasing', tool === 'erase');
+}
+
+function pushUndo() {
+  const scr = currentScreen();
+  undoStack.push({
+    sx: currentSX, sy: currentSY,
+    grid: scr.grid.map(r => [...r])
+  });
+  if (undoStack.length > 50) undoStack.shift();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const snap = undoStack.pop();
+  const scr = getScreen(snap.sy, snap.sx);
+  scr.grid = snap.grid;
+  if (snap.sx === currentSX && snap.sy === currentSY) renderEditor();
+  updateWorldGrid();
+  toast('Undo');
+}
+
+function floodFill(grid, startR, startC, target, replacement) {
+  if (target === replacement) return;
+  const stack = [[startR, startC]];
+  while (stack.length > 0) {
+    const [r, c] = stack.pop();
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
+    if (grid[r][c] !== target) continue;
+    grid[r][c] = replacement;
+    stack.push([r-1,c],[r+1,c],[r,c-1],[r,c+1]);
+  }
+}
+
+// ============================================================
+// CANVAS INTERACTION
+// ============================================================
+
+canvas.addEventListener('mousedown', (e) => {
+  const [col, row] = canvasToTile(e);
+  if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+  isDrawing = true;
+  lastDrawnCell = null;
+  pushUndo();
+  applyTool(row, col);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const [col, row] = canvasToTile(e);
+  document.getElementById('canvas-coords').textContent = 
+    (row >= 0 && row < ROWS && col >= 0 && col < COLS) 
+      ? `R${row} C${col} — ${TILES[currentScreen().grid[row]?.[col]]?.name || '?'}`
+      : '—';
+  if (isDrawing && (currentTool === 'paint' || currentTool === 'erase')) {
+    const key = `${row},${col}`;
+    if (key !== lastDrawnCell && row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+      applyTool(row, col);
+      lastDrawnCell = key;
+    }
+  }
+});
+
+canvas.addEventListener('mouseup', () => { isDrawing = false; lastDrawnCell = null; });
+canvas.addEventListener('mouseleave', () => { isDrawing = false; lastDrawnCell = null; });
+
+function canvasToTile(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  return [Math.floor(mx / TILE), Math.floor(my / TILE)];
+}
+
+function applyTool(row, col) {
+  const scr = currentScreen();
+  if (currentTool === 'paint') {
+    scr.grid[row][col] = selectedTile;
+  } else if (currentTool === 'erase') {
+    scr.grid[row][col] = 0;
+  } else if (currentTool === 'fill') {
+    const target = scr.grid[row][col];
+    floodFill(scr.grid, row, col, target, selectedTile);
+  } else if (currentTool === 'pick') {
+    selectTile(scr.grid[row][col]);
+    setTool('paint');
+  }
+  renderEditor();
+  updateWorldGrid();
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+function renderEditor() {
+  const scr = currentScreen();
+  if (!scr) return;
+
+  // Background
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, CW, CH);
+  ctx.fillStyle = '#2d3436';
+  ctx.fillRect(0, 0, CW, CH);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * TILE); ctx.lineTo(CW, r * TILE); ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * TILE, 0); ctx.lineTo(c * TILE, CH); ctx.stroke();
+  }
+
+  // Tiles
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = scr.grid[r][c];
+      if (t === 0) continue;
+      const tx = c * TILE, ty = r * TILE;
+      const cx = tx + TILE / 2, cy = ty + TILE / 2;
+      const tileDef = TILES[t];
+
+      if (t === 1) { // Wall
+        ctx.fillStyle = '#636e72';
+        ctx.fillRect(tx + 1, ty + 1, TILE - 2, TILE - 2);
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(tx + 2, ty + 2, TILE - 4, 3);
+        ctx.fillRect(tx + 2, ty + 2, 3, TILE - 4);
+        ctx.fillStyle = '#4a5156';
+        ctx.fillRect(tx + 2, ty + TILE - 5, TILE - 4, 3);
+      } else if (t === 2) { // Vent
+        ctx.fillStyle = 'rgba(224,64,251,0.2)';
+        ctx.beginPath(); ctx.arc(cx, cy, TILE * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e040fb';
+        ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f8bbd0';
+        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(234,128,252,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.stroke();
+      } else if (t >= 3 && t <= 8) { // Factory
+        ctx.fillStyle = '#00838f';
+        ctx.fillRect(cx - 14, cy - 14, 28, 28);
+        ctx.fillStyle = tileDef.color;
+        ctx.fillRect(cx - 12, cy - 12, 24, 24);
+        ctx.fillStyle = '#00838f';
+        ctx.fillRect(cx - 4, cy + 2, 8, 10);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tileDef.char, cx, cy - 3);
+      } else if (t === 9) { // Gun emplacement
+        ctx.fillStyle = '#9e9e9e';
+        ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#bdbdbd';
+        ctx.fillRect(cx, cy - 3, 16, 6);
+        ctx.strokeStyle = '#b71c1c';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+  }
+
+  // Draw exit indicators
+  drawExitIndicators(scr);
+
+  // Reference overlay
+  if (refShow && refImage) {
+    drawRefOverlay();
+  }
+
+  // Player start indicator
+  if (currentSX === mapData.playerStart.screenX && currentSY === mapData.playerStart.screenY) {
+    ctx.fillStyle = 'rgba(0,230,118,0.15)';
+    ctx.beginPath(); ctx.arc(CW / 2, CH / 2, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#00e676';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(CW / 2, CH / 2, 20, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CW / 2 - 8, CH / 2); ctx.lineTo(CW / 2 + 8, CH / 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CW / 2, CH / 2 - 8); ctx.lineTo(CW / 2, CH / 2 + 8); ctx.stroke();
+    ctx.fillStyle = '#00e676';
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('START', CW / 2, CH / 2 + 32);
+  }
+}
+
+function drawExitIndicators(scr) {
+  ctx.fillStyle = 'rgba(0,230,118,0.15)';
+  ctx.strokeStyle = 'rgba(0,230,118,0.3)';
+  ctx.lineWidth = 1;
+  
+  // Top exit
+  if (currentSY > 0) {
+    ctx.fillRect(7 * TILE, 0, 6 * TILE, 4);
+    ctx.strokeRect(7 * TILE, 0, 6 * TILE, 4);
+  }
+  // Bottom exit
+  if (currentSY < MAP_SIZE - 1) {
+    ctx.fillRect(7 * TILE, CH - 4, 6 * TILE, 4);
+    ctx.strokeRect(7 * TILE, CH - 4, 6 * TILE, 4);
+  }
+  // Left exit
+  if (currentSX > 0) {
+    ctx.fillRect(0, 5 * TILE, 4, 4 * TILE);
+    ctx.strokeRect(0, 5 * TILE, 4, 4 * TILE);
+  }
+  // Right exit
+  if (currentSX < MAP_SIZE - 1) {
+    ctx.fillRect(CW - 4, 5 * TILE, 4, 4 * TILE);
+    ctx.strokeRect(CW - 4, 5 * TILE, 4, 4 * TILE);
+  }
+}
+
+function drawRefOverlay() {
+  if (!refImage) return;
+  const cropCol = parseInt(document.getElementById('ref-crop-col').value) || 0;
+  const cropRow = parseInt(document.getElementById('ref-crop-row').value) || 0;
+
+  // Calculate the portion of the reference image that corresponds to this screen
+  const cellW = refImage.width / MAP_SIZE;
+  const cellH = refImage.height / MAP_SIZE;
+  const srcX = cropCol * cellW;
+  const srcY = cropRow * cellH;
+
+  ctx.globalAlpha = refOpacity;
+  ctx.drawImage(refImage, srcX, srcY, cellW, cellH, 0, 0, CW, CH);
+  ctx.globalAlpha = 1.0;
+}
+
+// ============================================================
+// SCREEN PROPERTIES
+// ============================================================
+
+function updateScreenProp(prop, value) {
+  const scr = currentScreen();
+  scr[prop] = parseInt(value) || 0;
+  updateWorldGrid();
+}
+
+function setPlayerStart() {
+  mapData.playerStart.screenX = currentSX;
+  mapData.playerStart.screenY = currentSY;
+  updateWorldStats();
+  renderEditor();
+  toast(`Player start set to ${String.fromCharCode(65 + currentSX)}${currentSY + 1}`);
+}
+
+function clearScreen() {
+  pushUndo();
+  const scr = currentScreen();
+  scr.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  renderEditor();
+  updateWorldGrid();
+  toast('Screen cleared');
+}
+
+function addBorderWalls() {
+  pushUndo();
+  const scr = currentScreen();
+  const g = scr.grid;
+
+  // Top border
+  for (let c = 0; c < COLS; c++) {
+    const isGap = c >= 7 && c <= 12;
+    if (!isGap || currentSY === 0) g[0][c] = 1;
+  }
+  // Bottom border
+  for (let c = 0; c < COLS; c++) {
+    const isGap = c >= 7 && c <= 12;
+    if (!isGap || currentSY === MAP_SIZE - 1) g[ROWS - 1][c] = 1;
+  }
+  // Left border
+  for (let r = 0; r < ROWS; r++) {
+    const isGap = r >= 5 && r <= 8;
+    if (!isGap || currentSX === 0) g[r][0] = 1;
+  }
+  // Right border
+  for (let r = 0; r < ROWS; r++) {
+    const isGap = r >= 5 && r <= 8;
+    if (!isGap || currentSX === MAP_SIZE - 1) g[r][COLS - 1] = 1;
+  }
+
+  renderEditor();
+  updateWorldGrid();
+  toast('Border walls added');
+}
+
+// ============================================================
+// REFERENCE IMAGE
+// ============================================================
+
+function loadRefImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    refImage = img;
+    document.getElementById('ref-show').checked = true;
+    refShow = true;
+    renderEditor();
+    toast('Reference image loaded');
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+function setRefOpacity(val) {
+  refOpacity = val / 100;
+  document.getElementById('ref-opacity-val').textContent = val + '%';
+  renderEditor();
+}
+
+function toggleRef(show) {
+  refShow = show;
+  renderEditor();
+}
+
+function updateRefCrop() {
+  renderEditor();
+}
+
+// ============================================================
+// SAVE / LOAD
+// ============================================================
+
+function saveJSON() {
+  const json = JSON.stringify(mapData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (mapData.name || 'panzadrome-map') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Map saved as JSON');
+}
+
+function loadJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.screens && data.screens.length === MAP_SIZE) {
+        mapData = data;
+        currentSX = 0; currentSY = 0;
+        buildWorldGrid();
+        navigateTo(0, 0);
+        toast('Map loaded');
+      } else {
+        toast('Invalid map file');
+      }
+    } catch (err) {
+      toast('Error loading: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function newMap() {
+  if (!confirm('Create a new blank map? Unsaved changes will be lost.')) return;
+  mapData = createBlankMap();
+  undoStack = [];
+  currentSX = 0; currentSY = 0;
+  buildWorldGrid();
+  navigateTo(0, 0);
+  toast('New map created');
+}
+
+// ============================================================
+// EXPORT TO JS FORMAT (compatible with originalMap.js)
+// ============================================================
+
+function exportJS() {
+  const CHAR_MAP_REV = { 0: '.', 1: '#', 2: 'V', 3: 'M', 4: 'N', 5: 'P', 6: 'S', 7: 'D', 8: 'R', 9: 'G' };
+  
+  let js = `// ============================================================\n`;
+  js += `// PANZADROME - MAP DATA\n`;
+  js += `// Generated by Panzadrome Level Editor\n`;
+  js += `// ${new Date().toISOString()}\n`;
+  js += `// ============================================================\n\n`;
+  js += `const CHAR_MAP = { '.': 0, '#': 1, 'V': 2, 'M': 3, 'N': 4, 'P': 5, 'S': 6, 'D': 7, 'R': 8, 'G': 9 };\n\n`;
+  js += `function parseScreen(rows) {\n  return rows.map(row => row.split('').map(ch => CHAR_MAP[ch] ?? 0));\n}\n\n`;
+
+  for (let sy = 0; sy < MAP_SIZE; sy++) {
+    js += `// ============================================================\n`;
+    js += `// ROW ${sy}\n`;
+    js += `// ============================================================\n\n`;
+    for (let sx = 0; sx < MAP_SIZE; sx++) {
+      const scr = getScreen(sy, sx);
+      js += `const S_${sy}_${sx} = parseScreen([\n`;
+      for (let r = 0; r < ROWS; r++) {
+        const rowStr = scr.grid[r].map(t => CHAR_MAP_REV[t] || '.').join('');
+        js += `  '${rowStr}',\n`;
+      }
+      js += `]);\n\n`;
+    }
+  }
+
+  js += `export const originalMap = [\n`;
+  for (let sy = 0; sy < MAP_SIZE; sy++) {
+    js += `  [${Array.from({length: MAP_SIZE}, (_, sx) => `S_${sy}_${sx}`).join(', ')}],\n`;
+  }
+  js += `];\n\n`;
+
+  // Vent locations
+  js += `export const ventScreens = [\n`;
+  for (let sy = 0; sy < MAP_SIZE; sy++) for (let sx = 0; sx < MAP_SIZE; sx++) {
+    const scr = getScreen(sy, sx);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (scr.grid[r][c] === 2) js += `  [${sy}, ${sx}],\n`;
+    }
+  }
+  js += `];\n\n`;
+
+  // Enemy counts
+  js += `const ENEMY_COUNTS = {};\n`;
+  for (let sy = 0; sy < MAP_SIZE; sy++) for (let sx = 0; sx < MAP_SIZE; sx++) {
+    const scr = getScreen(sy, sx);
+    js += `ENEMY_COUNTS['${sy},${sx}'] = { regular: ${scr.enemies || 0}, guards: ${scr.guards || 0} };\n`;
+  }
+  js += `\nexport function getEnemyCount(row, col) {\n  return ENEMY_COUNTS[row + ',' + col] || { regular: 2, guards: 0 };\n}\n\n`;
+
+  js += `export const playerStart = { screenX: ${mapData.playerStart.screenX}, screenY: ${mapData.playerStart.screenY}, x: 320, y: 224 };\n`;
+
+  const blob = new Blob([js], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'originalMap.js';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported as JS');
+}
+
+// ============================================================
+// IMPORT FROM CURRENT JS FORMAT
+// ============================================================
+
+function importCurrentJS() {
+  // Import the hardcoded map data that was already in originalMap.js
+  // This parses the same string format
+  const CHAR_MAP = { '.': 0, '#': 1, 'V': 2, 'M': 3, 'N': 4, 'P': 5, 'S': 6, 'D': 7, 'R': 8, 'G': 9 };
+  
+  function ps(rows) {
+    return rows.map(row => row.split('').map(ch => CHAR_MAP[ch] ?? 0));
+  }
+
+  // I'll embed a prompt for pasting, since we can't import ES modules in a standalone HTML
+  const input = prompt(
+    'Paste the screen data as JSON, or type "demo" to load a demo layout.\n\n' +
+    'To import your existing map:\n' +
+    '1. Save your current map as JSON first\n' +
+    '2. Load the JSON file using LOAD JSON button\n\n' +
+    'Or type "demo" for a starter layout:'
+  );
+  
+  if (input === 'demo' || input === 'DEMO') {
+    loadDemoMap();
+    toast('Demo map loaded');
+  } else if (input) {
+    try {
+      const data = JSON.parse(input);
+      if (data.screens) {
+        mapData = data;
+        buildWorldGrid();
+        navigateTo(0, 0);
+        toast('Map imported');
+      }
+    } catch (e) {
+      toast('Could not parse input');
+    }
+  }
+}
+
+function loadDemoMap() {
+  mapData = createBlankMap();
+  // Add border walls to all screens and a couple of demo features
+  for (let sy = 0; sy < MAP_SIZE; sy++) for (let sx = 0; sx < MAP_SIZE; sx++) {
+    const scr = getScreen(sy, sx);
+    const g = scr.grid;
+    // Borders with exit gaps
+    for (let c = 0; c < COLS; c++) {
+      if (!(c >= 7 && c <= 12) || sy === 0) g[0][c] = 1;
+      if (!(c >= 7 && c <= 12) || sy === MAP_SIZE - 1) g[ROWS - 1][c] = 1;
+    }
+    for (let r = 0; r < ROWS; r++) {
+      if (!(r >= 5 && r <= 8) || sx === 0) g[r][0] = 1;
+      if (!(r >= 5 && r <= 8) || sx === MAP_SIZE - 1) g[r][COLS - 1] = 1;
+    }
+    scr.enemies = 1 + Math.floor((sy + sx) / 3);
+  }
+  buildWorldGrid();
+  navigateTo(0, 0);
+}
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+
+document.addEventListener('keydown', (e) => {
+  // Don't capture when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (e.code === 'KeyB') { setTool('paint'); e.preventDefault(); }
+  else if (e.code === 'KeyE') { setTool('erase'); e.preventDefault(); }
+  else if (e.code === 'KeyF') { setTool('fill'); e.preventDefault(); }
+  else if (e.code === 'KeyI') { setTool('pick'); e.preventDefault(); }
+  else if (e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)) { undo(); e.preventDefault(); }
+  else if (e.code === 'KeyS' && (e.ctrlKey || e.metaKey)) { saveJSON(); e.preventDefault(); }
+  else if (e.code === 'ArrowLeft' && !e.ctrlKey) { navigateTo(currentSX - 1, currentSY); e.preventDefault(); }
+  else if (e.code === 'ArrowRight' && !e.ctrlKey) { navigateTo(currentSX + 1, currentSY); e.preventDefault(); }
+  else if (e.code === 'ArrowUp' && !e.ctrlKey) { navigateTo(currentSX, currentSY - 1); e.preventDefault(); }
+  else if (e.code === 'ArrowDown' && !e.ctrlKey) { navigateTo(currentSX, currentSY + 1); e.preventDefault(); }
+  // Number keys for tile selection
+  else if (e.code >= 'Digit0' && e.code <= 'Digit9' && !e.ctrlKey) {
+    const n = parseInt(e.code.replace('Digit', ''));
+    if (n < TILES.length) { selectTile(n); e.preventDefault(); }
+  }
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+buildPalette();
+buildWorldGrid();
+navigateTo(0, 0);
+
+// Drag and drop for ref image on the whole page
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const img = new Image();
+    img.onload = () => {
+      refImage = img;
+      document.getElementById('ref-show').checked = true;
+      refShow = true;
+      renderEditor();
+      toast('Reference image loaded');
+    };
+    img.src = URL.createObjectURL(file);
+  }
+});
+</script>
+</body>
+</html>

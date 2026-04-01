@@ -89,6 +89,106 @@ export function drawMine(ctx, m, time) {
   ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(m.x, m.y, 7, 0, Math.PI * 2); ctx.stroke();
 }
 
+// --- NEW TILE DRAWING ---
+
+export function drawWater(ctx, tx, ty, time, isDeep) {
+  const cx = tx + TILE / 2, cy = ty + TILE / 2;
+  // Base water colour
+  ctx.fillStyle = isDeep ? C.water : C.waterShallow;
+  ctx.fillRect(tx, ty, TILE, TILE);
+  
+  // Animated wave lines
+  const phase = time * 0.04;
+  ctx.strokeStyle = isDeep ? C.waterLight : "rgba(66,165,245,0.4)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const wy = ty + 6 + i * 10;
+    ctx.beginPath();
+    for (let wx = tx; wx <= tx + TILE; wx += 2) {
+      const y2 = wy + Math.sin(phase + wx * 0.08 + i * 1.5) * 2;
+      if (wx === tx) ctx.moveTo(wx, y2);
+      else ctx.lineTo(wx, y2);
+    }
+    ctx.stroke();
+  }
+  
+  // Foam highlights on deep water
+  if (isDeep) {
+    ctx.fillStyle = `rgba(66,165,245,${0.15 + Math.sin(phase + tx * 0.1) * 0.1})`;
+    ctx.fillRect(tx + 4, ty + 2, 8, 3);
+    ctx.fillRect(tx + 16, ty + 14, 10, 2);
+  }
+}
+
+export function drawRubble(ctx, tx, ty, rng) {
+  // Damaged ground with scattered debris
+  ctx.fillStyle = C.rubble;
+  ctx.fillRect(tx, ty, TILE, TILE);
+  
+  // Random debris spots (seeded per tile so they're stable)
+  ctx.fillStyle = C.rubbleLight;
+  for (let i = 0; i < 5; i++) {
+    const rx = tx + rng() * (TILE - 4);
+    const ry = ty + rng() * (TILE - 4);
+    const rs = 2 + rng() * 3;
+    ctx.fillRect(rx, ry, rs, rs);
+  }
+  // Crack lines
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(tx + rng() * TILE, ty);
+  ctx.lineTo(tx + TILE / 2 + (rng() - 0.5) * 10, ty + TILE / 2);
+  ctx.lineTo(tx + rng() * TILE, ty + TILE);
+  ctx.stroke();
+}
+
+export function drawHeavyWall(ctx, tx, ty) {
+  // Reinforced wall — darker, with cross-hatching to distinguish from regular walls
+  ctx.fillStyle = C.wallHeavy;
+  ctx.fillRect(tx + 1, ty + 1, TILE - 2, TILE - 2);
+  ctx.fillStyle = C.wallHeavyHi;
+  ctx.fillRect(tx + 2, ty + 2, TILE - 4, 3);
+  ctx.fillRect(tx + 2, ty + 2, 3, TILE - 4);
+  ctx.fillStyle = C.wallHeavyShade;
+  ctx.fillRect(tx + 2, ty + TILE - 5, TILE - 4, 3);
+  // Diagonal reinforcement marks
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(tx + 4, ty + TILE - 4); ctx.lineTo(tx + TILE - 4, ty + 4);
+  ctx.moveTo(tx + 4, ty + 4); ctx.lineTo(tx + TILE - 4, ty + TILE - 4);
+  ctx.stroke();
+}
+
+export function drawFloorAlt(ctx, tx, ty) {
+  // Checkerboard / patterned floor — purely decorative
+  const size = TILE / 4;
+  for (let r = 0; r < 4; r++) for (let cc = 0; cc < 4; cc++) {
+    ctx.fillStyle = (r + cc) % 2 === 0 ? C.floorAlt : C.floorAltLight;
+    ctx.fillRect(tx + cc * size, ty + r * size, size, size);
+  }
+}
+
+export function drawBridge(ctx, tx, ty) {
+  // Wooden bridge planks over water
+  ctx.fillStyle = C.water;
+  ctx.fillRect(tx, ty, TILE, TILE);
+  ctx.fillStyle = C.bridge;
+  ctx.fillRect(tx + 2, ty, TILE - 4, TILE);
+  // Plank lines
+  ctx.strokeStyle = "rgba(0,0,0,0.2)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const py = ty + 2 + i * 8;
+    ctx.beginPath(); ctx.moveTo(tx + 2, py); ctx.lineTo(tx + TILE - 2, py); ctx.stroke();
+  }
+  // Rails
+  ctx.fillStyle = C.bridgeRail;
+  ctx.fillRect(tx + 1, ty, 3, TILE);
+  ctx.fillRect(tx + TILE - 4, ty, 3, TILE);
+}
+
 // --- SCREEN-LEVEL DRAWING ---
 
 export function drawExits(ctx, g) {
@@ -112,12 +212,15 @@ export function drawScanner(ctx, x, y, screens, pSX, pSY, pX, pY, time) {
     ctx.beginPath(); ctx.moveTo(x, y + i * ch); ctx.lineTo(x + sw, y + i * ch); ctx.stroke();
   }
   for (let sy = 0; sy < MAP_SIZE; sy++) for (let sx = 0; sx < MAP_SIZE; sx++) {
-    const scr = screens[sy][sx]; let hv = false, hf = false;
+    const scr = screens[sy][sx]; let hv = false, hf = false, hw = false;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (scr.grid[r][c] === T.VENT) hv = true;
       if (scr.grid[r][c] >= T.FACTORY_MORTAR && scr.grid[r][c] <= T.FACTORY_RICOCHET) hf = true;
+      if (scr.grid[r][c] === T.WATER) hw = true;
     }
     const cx2 = x + sx * cw + cw / 2, cy2 = y + sy * ch + ch / 2;
+    // Water tint on scanner
+    if (hw) { ctx.fillStyle = "rgba(21,101,192,0.3)"; ctx.fillRect(x + sx * cw, y + sy * ch, cw, ch); }
     if (hv) { ctx.fillStyle = `rgba(234,128,252,${Math.sin(time * 0.08 + sx + sy) * 0.3 + 0.7})`; ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, Math.PI * 2); ctx.fill(); }
     if (hf) { ctx.fillStyle = C.scannerFactory; ctx.fillRect(cx2 + 2, cy2 + 2, 3, 3); }
     if (scr.enemies.some(e => e.alive)) { ctx.fillStyle = C.scannerEnemy; ctx.fillRect(cx2 - 4, cy2 - 1, 2, 2); }
@@ -210,7 +313,9 @@ export function renderGame(ctx, g, canvas) {
   // Exits
   drawExits(ctx, g);
 
-  // Tiles
+  // Tiles — seeded RNG for consistent rubble per-screen
+  const tileRng = mulberry32((g.screenY * MAP_SIZE + g.screenX) * 3137 + 99);
+
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const t = scr.grid[r][c], tx = c * TILE, ty = r * TILE, cx2 = tx + TILE / 2, cy2 = ty + TILE / 2;
     if (t === T.WALL) {
@@ -218,6 +323,12 @@ export function renderGame(ctx, g, canvas) {
       ctx.fillStyle = C.wallHi; ctx.fillRect(tx + 2, ty + 2, TILE - 4, 3); ctx.fillRect(tx + 2, ty + 2, 3, TILE - 4);
       ctx.fillStyle = C.wallShade; ctx.fillRect(tx + 2, ty + TILE - 5, TILE - 4, 3);
     }
+    else if (t === T.WALL_HEAVY) { drawHeavyWall(ctx, tx, ty); }
+    else if (t === T.WATER) { drawWater(ctx, tx, ty, g.time, true); }
+    else if (t === T.WATER_SHALLOW) { drawWater(ctx, tx, ty, g.time, false); }
+    else if (t === T.RUBBLE) { drawRubble(ctx, tx, ty, tileRng); }
+    else if (t === T.FLOOR_ALT) { drawFloorAlt(ctx, tx, ty); }
+    else if (t === T.BRIDGE) { drawBridge(ctx, tx, ty); }
     else if (t === T.VENT) drawVent(ctx, cx2, cy2, g.time);
     else if (t >= T.FACTORY_MORTAR && t <= T.FACTORY_RICOCHET) drawFactory(ctx, cx2, cy2, t);
     else if (t === T.GUN_EMPLACEMENT) {

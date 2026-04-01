@@ -13,6 +13,7 @@ import {
   T, WEAPONS, C, SFX,
   generateMap,
   isWalkableTiles, resolveCraters, resolveTanks, circlesCollide, createExplosion,
+  getTerrainSpeedMultiplier, blocksBullets, canCrater,
 } from "./engine/index.js";
 
 import { renderGame, drawTank } from "./engine/renderer.js";
@@ -92,7 +93,9 @@ export default function Panzadrome() {
       if (g.mineCooldown > 0) g.mineCooldown--;
 
       const scr = g.screens[g.screenY][g.screenX];
-      const speed = g.hasSpeedUpgrade ? PLAYER_SPEED * 1.4 : PLAYER_SPEED;
+      // Apply terrain speed multiplier (shallow water, rubble slow you down)
+      const terrainMult = getTerrainSpeedMultiplier(g.playerX, g.playerY, scr.grid);
+      const speed = (g.hasSpeedUpgrade ? PLAYER_SPEED * 1.4 : PLAYER_SPEED) * terrainMult;
 
       // Weapon switch
       if (keys["Digit1"] && g.availableWeapons[0]) { g.weaponType = g.availableWeapons[0]; keys["Digit1"] = false; }
@@ -202,18 +205,35 @@ export default function Panzadrome() {
       // Player bullets
       g.bullets = g.bullets.filter(b => {
         b.x += b.vx; b.y += b.vy; b.life--;
-        if (b.life <= 0) { if (b.type === "mortar") { scr.craters.push({ x: b.x, y: b.y }); g.particles.push(...createExplosion(b.x, b.y, "#ff7043", 10)); SFX.play("explode"); } return false; }
-        if (b.x < 0 || b.x > SCREEN_W || b.y < 0 || b.y > SCREEN_H) { if (b.type === "mortar") scr.craters.push({ x: Math.max(5, Math.min(SCREEN_W - 5, b.x)), y: Math.max(5, Math.min(SCREEN_H - 5, b.y)) }); return false; }
+        if (b.life <= 0) {
+          if (b.type === "mortar") {
+            const mr = Math.floor(b.y / TILE), mc = Math.floor(b.x / TILE);
+            const mt = (mr >= 0 && mr < ROWS && mc >= 0 && mc < COLS) ? scr.grid[mr][mc] : 0;
+            if (canCrater(mt)) scr.craters.push({ x: b.x, y: b.y });
+            g.particles.push(...createExplosion(b.x, b.y, "#ff7043", 10)); SFX.play("explode");
+          }
+          return false;
+        }
+        if (b.x < 0 || b.x > SCREEN_W || b.y < 0 || b.y > SCREEN_H) {
+          if (b.type === "mortar") {
+            const cx = Math.max(5, Math.min(SCREEN_W - 5, b.x)), cy = Math.max(5, Math.min(SCREEN_H - 5, b.y));
+            const mr = Math.floor(cy / TILE), mc = Math.floor(cx / TILE);
+            const mt = (mr >= 0 && mr < ROWS && mc >= 0 && mc < COLS) ? scr.grid[mr][mc] : 0;
+            if (canCrater(mt)) scr.craters.push({ x: cx, y: cy });
+          }
+          return false;
+        }
         const col = Math.floor(b.x / TILE), row = Math.floor(b.y / TILE);
         if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
           const t = scr.grid[row][col];
-          if (t === T.WALL) {
+          if (blocksBullets(t)) {
             if (b.type === "ricochet" && b.bounces < b.maxBounces) {
               b.bounces++; const ccx = col * TILE + TILE / 2, ccy = row * TILE + TILE / 2;
               if (Math.abs(b.x - ccx) > Math.abs(b.y - ccy)) { b.vx = -b.vx; b.x += b.vx * 2; } else { b.vy = -b.vy; b.y += b.vy * 2; }
               g.particles.push(...createExplosion(b.x, b.y, C.ricochetBullet, 4)); SFX.play("bounce"); return true;
             }
-            scr.craters.push({ x: b.x, y: b.y }); g.particles.push(...createExplosion(b.x, b.y, C.bullet, 6)); return false;
+            if (canCrater(t)) scr.craters.push({ x: b.x, y: b.y });
+            g.particles.push(...createExplosion(b.x, b.y, C.bullet, 6)); return false;
           }
           if (t === T.VENT) { scr.grid[row][col] = T.EMPTY; g.ventsDestroyed++; g.score += 500; setVentsDestroyed(g.ventsDestroyed); setScore(g.score);
             g.particles.push(...createExplosion(col * TILE + TILE / 2, row * TILE + TILE / 2, C.vent, 20));
@@ -233,9 +253,18 @@ export default function Panzadrome() {
       // Enemy bullets
       g.enemyBullets = g.enemyBullets.filter(b => {
         b.x += b.vx; b.y += b.vy; b.life--;
-        if (b.life <= 0 || b.x < 0 || b.x > SCREEN_W || b.y < 0 || b.y > SCREEN_H) { scr.craters.push({ x: Math.max(5, Math.min(SCREEN_W - 5, b.x)), y: Math.max(5, Math.min(SCREEN_H - 5, b.y)) }); return false; }
+        if (b.life <= 0 || b.x < 0 || b.x > SCREEN_W || b.y < 0 || b.y > SCREEN_H) {
+          const cx = Math.max(5, Math.min(SCREEN_W - 5, b.x)), cy = Math.max(5, Math.min(SCREEN_H - 5, b.y));
+          const mr = Math.floor(cy / TILE), mc = Math.floor(cx / TILE);
+          const mt = (mr >= 0 && mr < ROWS && mc >= 0 && mc < COLS) ? scr.grid[mr][mc] : 0;
+          if (canCrater(mt)) scr.craters.push({ x: cx, y: cy });
+          return false;
+        }
         const col = Math.floor(b.x / TILE), row = Math.floor(b.y / TILE);
-        if (row >= 0 && row < ROWS && col >= 0 && col < COLS && scr.grid[row][col] === T.WALL) { scr.craters.push({ x: b.x, y: b.y }); g.particles.push(...createExplosion(b.x, b.y, C.enemyBullet, 4)); return false; }
+        if (row >= 0 && row < ROWS && col >= 0 && col < COLS && blocksBullets(scr.grid[row][col])) {
+          if (canCrater(scr.grid[row][col])) scr.craters.push({ x: b.x, y: b.y });
+          g.particles.push(...createExplosion(b.x, b.y, C.enemyBullet, 4)); return false;
+        }
         if (circlesCollide(b.x, b.y, 4, g.playerX, g.playerY, 10) && g.invincibleTimer <= 0) {
           g.shields -= 10; g.shakeTimer = 5; g.invincibleTimer = 15;
           g.particles.push(...createExplosion(g.playerX, g.playerY, C.shield, 8)); SFX.play("damage");
@@ -251,14 +280,17 @@ export default function Panzadrome() {
         const en = scr.enemies[ei]; if (!en.alive) continue; if (en.flashTimer > 0) en.flashTimer--;
         en.x = Math.max(14, Math.min(SCREEN_W - 14, en.x)); en.y = Math.max(14, Math.min(SCREEN_H - 14, en.y));
         const dx = g.playerX - en.x, dy = g.playerY - en.y, dist = Math.hypot(dx, dy), atp = Math.atan2(dy, dx);
+        // Terrain also affects enemy movement speed
+        const enTerrainMult = getTerrainSpeedMultiplier(en.x, en.y, scr.grid);
+        const enSpeed = en.speed * enTerrainMult;
         if (dist < 200) {
           en.state = "chase"; let df = atp - en.angle; while (df > Math.PI) df -= Math.PI * 2; while (df < -Math.PI) df += Math.PI * 2;
           en.angle += Math.sign(df) * Math.min(Math.abs(df), 0.04);
-          const nx = en.x + Math.cos(en.angle) * en.speed, ny = en.y + Math.sin(en.angle) * en.speed;
+          const nx = en.x + Math.cos(en.angle) * enSpeed, ny = en.y + Math.sin(en.angle) * enSpeed;
           if (isWalkableTiles(nx, ny, scr.grid, 10)) { en.x = nx; en.y = ny; }
           else if (isWalkableTiles(nx, en.y, scr.grid, 10)) en.x = nx;
           else if (isWalkableTiles(en.x, ny, scr.grid, 10)) en.y = ny;
-          else { const alt = en.angle + (Math.random() < 0.5 ? 0.5 : -0.5); const ax = en.x + Math.cos(alt) * en.speed, ay = en.y + Math.sin(alt) * en.speed; if (isWalkableTiles(ax, ay, scr.grid, 10)) { en.x = ax; en.y = ay; en.angle = alt; } }
+          else { const alt = en.angle + (Math.random() < 0.5 ? 0.5 : -0.5); const ax = en.x + Math.cos(alt) * enSpeed, ay = en.y + Math.sin(alt) * enSpeed; if (isWalkableTiles(ax, ay, scr.grid, 10)) { en.x = ax; en.y = ay; en.angle = alt; } }
           en.shootCooldown--; if (en.shootCooldown <= 0 && dist < 180) {
             g.enemyBullets.push({ x: en.x + Math.cos(atp) * 14, y: en.y + Math.sin(atp) * 14, vx: Math.cos(atp) * ENEMY_BULLET_SPEED, vy: Math.sin(atp) * ENEMY_BULLET_SPEED, life: 40 });
             en.shootCooldown = 40 + Math.floor(Math.random() * 30);
@@ -266,7 +298,7 @@ export default function Panzadrome() {
         } else {
           en.state = "patrol"; en.patrolTimer--; if (en.patrolTimer <= 0) { en.patrolAngle = Math.random() * Math.PI * 2; en.patrolTimer = 80 + Math.floor(Math.random() * 100); }
           en.angle += (en.patrolAngle - en.angle) * 0.02;
-          const nx = en.x + Math.cos(en.angle) * en.speed * 0.5, ny = en.y + Math.sin(en.angle) * en.speed * 0.5;
+          const nx = en.x + Math.cos(en.angle) * enSpeed * 0.5, ny = en.y + Math.sin(en.angle) * enSpeed * 0.5;
           if (isWalkableTiles(nx, ny, scr.grid, 10)) { en.x = nx; en.y = ny; } else en.patrolAngle = Math.random() * Math.PI * 2;
         }
         const ecr = resolveCraters(en.x, en.y, scr.craters, 10); if (isWalkableTiles(ecr.x, ecr.y, scr.grid, 10)) { en.x = ecr.x; en.y = ecr.y; }

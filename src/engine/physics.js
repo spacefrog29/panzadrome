@@ -5,6 +5,15 @@
 
 import { TILE, ROWS, COLS, CRATER_RADIUS, T } from './constants.js';
 
+// Tiles that block all movement
+const IMPASSABLE = new Set([T.WALL, T.WALL_HEAVY, T.GUN_EMPLACEMENT, T.WATER]);
+
+// Tiles that slow movement (return speed multiplier)
+const SLOW_TERRAIN = new Map([
+  [T.WATER_SHALLOW, 0.5],
+  [T.RUBBLE, 0.6],
+]);
+
 export function circlesCollide(x1, y1, r1, x2, y2, r2) {
   const dx = x1 - x2, dy = y1 - y2;
   return dx * dx + dy * dy < (r1 + r2) * (r1 + r2);
@@ -19,9 +28,29 @@ export function isWalkableTiles(x, y, grid, radius = 10) {
     const c = Math.floor(cx / TILE), r = Math.floor(cy / TILE);
     if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
     const t = grid[r][c];
-    if (t === T.WALL || t === T.GUN_EMPLACEMENT) return false;
+    if (IMPASSABLE.has(t)) return false;
   }
   return true;
+}
+
+// Returns the speed multiplier for the tile at position (x, y)
+// 1.0 = normal speed, <1.0 = slow terrain
+export function getTerrainSpeedMultiplier(x, y, grid) {
+  const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return 1.0;
+  const t = grid[r][c];
+  return SLOW_TERRAIN.get(t) ?? 1.0;
+}
+
+// Check if a tile blocks bullets (walls do, water doesn't)
+export function blocksBullets(t) {
+  return t === T.WALL || t === T.WALL_HEAVY;
+}
+
+// Check if mortar can create a crater on this tile
+// Heavy walls resist mortar damage
+export function canCrater(t) {
+  return t !== T.WALL_HEAVY && t !== T.WATER;
 }
 
 export function resolveCraters(x, y, craters, radius = 10) {
